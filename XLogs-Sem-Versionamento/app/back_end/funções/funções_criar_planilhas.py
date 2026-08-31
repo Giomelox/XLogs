@@ -400,9 +400,14 @@ def criar_planilha_difal(log_instance, page, views, current_view):
                                 ref_nf = nfe.getElementsByTagName('nNF')
                                 print_ref_nf = str(ref_nf[0].firstChild.data)
 
-                                # Código que extrai o valor da nota
-                                vNF = nfe.getElementsByTagName('vNF')
-                                print_valor_vNF = float(vNF[0].firstChild.data)
+                                # Código que extrai o valor do ICMS da nota
+                                icms_tot = nfe.getElementsByTagName("ICMSTot")[0]
+                                vICMS = icms_tot.getElementsByTagName("vICMS")[0]
+                                print_valor_vICMS = float(vICMS.firstChild.data)
+
+                                # Código que extrai o valor da base de cálculo do ICMS nota
+                                vBC = icms_tot.getElementsByTagName('vBC')[0]
+                                print_valor_vBC = float(vBC.firstChild.data)
 
                                 # Código para formatar o CNPJ
                                 CNPJ_dell = nfe.getElementsByTagName('CNPJ')
@@ -445,10 +450,15 @@ def criar_planilha_difal(log_instance, page, views, current_view):
                                 ref_nf = nfe.getElementsByTagName('nNF')
                                 print_ref_nf = str(ref_nf[0].firstChild.data)
 
-                                # Código que extrai o valor da nota
-                                vNF = nfe.getElementsByTagName('vNF')
-                                print_valor_vNF = float(vNF[0].firstChild.data)
-                                            
+                                # Código que extrai o valor do ICMS da nota
+                                icms_tot = nfe.getElementsByTagName("ICMSTot")[0]
+                                vICMS = icms_tot.getElementsByTagName("vICMS")[0]
+                                print_valor_vICMS = float(vICMS.firstChild.data)
+
+                                # Código que extrai o valor da base de cálculo do ICMS nota
+                                vBC = icms_tot.getElementsByTagName('vBC')[0]
+                                print_valor_vBC = float(vBC.firstChild.data)
+
                                 # Código para formatar o CNPJ
                                 CNPJ_HP = nfe.getElementsByTagName('CNPJ')              
                                 print_CNPJ_HP = str(CNPJ_HP[0].firstChild.data)
@@ -478,9 +488,9 @@ def criar_planilha_difal(log_instance, page, views, current_view):
 
                             sheet[f'H{idx}'] = print_ref_nf
                             sheet[f'I{idx}'] = nova_data
-                            sheet[f'J{idx}'] = print_valor_vNF
+                            sheet[f'J{idx}'] = print_valor_vBC
                             sheet[f'K{idx}'] = print_ICMS_prod
-                            sheet[f'L{idx}'] = print_valor_vNF * print_ICMS_prod
+                            sheet[f'L{idx}'] = print_valor_vICMS
                             sheet[f'M{idx}'] = print_aliquota_interna
                             sheet[f'N{idx}'] = print_aliquota_interna - print_ICMS_prod
 
