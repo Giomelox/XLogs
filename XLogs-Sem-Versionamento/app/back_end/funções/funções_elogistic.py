@@ -60,6 +60,7 @@ def biparxml(log_instance, page, views, current_view):
     
     planilha_df = planilha_manager.get_planilha()
 
+    #driver = webdriver.Edge()
     driver = webdriver.Chrome()
     
     try:
@@ -948,4 +949,3 @@ def criar_etiquetas_devolução_dell(log_instance, page: ft.Page, views, current
         botao_voltar.disabled = False
         botao_voltar.content.color = ft.Colors.WHITE
         page.update()
-    
