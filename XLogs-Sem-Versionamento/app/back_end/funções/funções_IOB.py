@@ -2,12 +2,16 @@ from app.back_end.funções.funções_conectar_email import aux_path_XML_destino
 from app.back_end.funções.funções_Gerais import obter_configs, PlanilhaManager, navigate
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 import xml.etree.ElementTree as ET
 from selenium import webdriver
+import subprocess
 import pandas as pd
 import flet as ft
 import time
@@ -17,11 +21,21 @@ import os
 # ========================================
 url_login_iob = 'https://sso.iob.com.br/signin/?response_type=code&scope=&client_id=c17d4225-9d57-401b-b4fd-32503121f55b&redirect_uri=https://emissor.iob.com.br'
 url_importacao_IOB = 'https://emissor2.iob.com.br/notafiscal/incoming_nfes'
-xpath_reCAPTCHA_IOB = '//*[@id="__next"]/div[2]/div/div[2]/main/div[2]/div/form/div[4]/div/div/div/iframe'
+xpath_reCAPTCHA_IOB = '/html/body/div[2]/div[2]/div/div/div[2]/main/div[2]/div/div/form/div[4]/div/div/div/iframe'
 elemento_clicavel_reCAPTCHA_IOB = '//div[@class="recaptcha-checkbox-border"]'
 # ========================================
 # ========================================
 
+# ======= VARIÁVEIS DE EMISSÃO IOB =======
+# ========================================
+xpath_ir_para_aba_campo_icms = "/html/body/div[4]/div[10]/div/form/div[3]/ul/li[3]/a"
+xpath_botao_submit_aba_icms = "/html/body/div[4]/div[10]/div/form/div[4]/div/span[1]/button"
+xpath_botao_emitir_nf = "/html/body/div[4]/div[13]/div[2]/span/button"
+xpath_botao_baixar_xml = "/html/body/div[3]/section/div/div[4]/div/a[4]"
+xpath_botao_ir_para_danfe = "/html/body/div[3]/section/div/div[4]/div/a[3]"
+xpath_botao_baixar_pdf = "/html/body/div[3]/section/div/a[2]"
+# ========================================
+# ========================================
 
 # ======= VARIAVEIS GLOBAIS DA PLANILHA =======
 planilha_manager = PlanilhaManager()
@@ -80,7 +94,6 @@ natureza_devolucao_flex_IOB = obter_configs().get('natureza_devolução_flex')
 # ==============================================================
 
 
-
 # Botoes_entrada_Dell
 def importar_produtos(log_instance, page, views, current_view):
 
@@ -91,8 +104,38 @@ def importar_produtos(log_instance, page, views, current_view):
     botao_voltar.content.color = ft.Colors.GREY_400
     page.update()
 
+    driver = None
+
+    #==============================================================================
+    subprocess.run(["powershell", "-Command", "Stop-Process -Name chrome -Force"], capture_output=True)
+    time.sleep(3)
+
+    # Pasta vazia nova, sem copiar nada
+    import os
+    temp_dir = r"C:\ChromeSelenium"
+    os.makedirs(temp_dir, exist_ok=True)
+
+    subprocess.Popen([
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        "--remote-debugging-port=9222",
+        f"--user-data-dir={temp_dir}",
+        "--no-first-run",
+        "--no-default-browser-check"
+    ])
+
+    options = Options()
+    options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=options)
+
+    log_instance.log_message('Iniciando importação de arquivos...')
+
+    driver.get(url_login_iob)
+
+    time.sleep(4)
+    #==============================================================================
+
     try:
-        driver = webdriver.Chrome()
         
         idx = 1
 
@@ -106,6 +149,8 @@ def importar_produtos(log_instance, page, views, current_view):
 
     try:
 
+        time.sleep(15) # tempo para carregar o reCAPTCHA
+
         element_usuario_emitir = WebDriverWait(driver, 200).until( # Busca pela página o campo de usuário
             EC.presence_of_element_located((By.ID, 'username'))
         )
@@ -118,7 +163,8 @@ def importar_produtos(log_instance, page, views, current_view):
         )
         element_senha_emitir.send_keys(senha_IOB) # Insere a senha
 
-        time.sleep(2.5) # tempo para carregar o reCAPTCHA
+        """
+        time.sleep(15) # tempo para carregar o reCAPTCHA
 
         element_reCAPTCHA_emitir = WebDriverWait(driver, 50).until( # Buscar o elemento reCAPTCHA na página
             EC.presence_of_element_located((By.XPATH, xpath_reCAPTCHA_IOB))
@@ -130,6 +176,7 @@ def importar_produtos(log_instance, page, views, current_view):
         driver.switch_to.default_content() # Muda para o contexto padrão da página
 
         time.sleep(10)
+        """
 
         element_submit_emitir = WebDriverWait(driver, 50).until( # Busca pelo elemento submit na página
             EC.presence_of_element_located((By.XPATH, '//*[@id="formButton"]'))
@@ -155,7 +202,7 @@ def importar_produtos(log_instance, page, views, current_view):
             element_form.click()
         except:
             pass
-
+    
         try:
             for x in os.listdir(aux_path_XML_destino):
                 # Remover o overlay antes de qualquer clique
@@ -257,7 +304,37 @@ def emitir_nf_circulação(log_instance, page, views, current_view):
     page.update()
 
     try:
-        driver = webdriver.Chrome()
+
+        driver = None
+
+        #==============================================================================
+        subprocess.run(["powershell", "-Command", "Stop-Process -Name chrome -Force"], capture_output=True)
+        time.sleep(3)
+
+        # Pasta vazia nova, sem copiar nada
+        import os
+        temp_dir = r"C:\ChromeSelenium"
+        os.makedirs(temp_dir, exist_ok=True)
+
+        subprocess.Popen([
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            "--remote-debugging-port=9222",
+            f"--user-data-dir={temp_dir}",
+            "--no-first-run",
+            "--no-default-browser-check"
+        ])
+
+        options = Options()
+        options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=options)
+
+        log_instance.log_message('Iniciando importação de arquivos...')
+
+        driver.get(url_login_iob)
+
+        time.sleep(4)
+        #==============================================================================
 
         actions = ActionChains(driver)
 
@@ -272,6 +349,9 @@ def emitir_nf_circulação(log_instance, page, views, current_view):
 
     
     try:
+        
+        time.sleep(15) # tempo para carregar o reCAPTCHA
+
         element_usuario_emitir = WebDriverWait(driver, 200).until( # Busca pela página o campo de usuário
             EC.presence_of_element_located((By.ID, 'username'))
         )
@@ -284,6 +364,7 @@ def emitir_nf_circulação(log_instance, page, views, current_view):
         )
         element_senha_emitir.send_keys(senha_IOB) # Insere a senha
 
+        """
         time.sleep(2.5) # tempo para carregar o reCAPTCHA
 
         element_reCAPTCHA_emitir = WebDriverWait(driver, 50).until( # Buscar o elemento reCAPTCHA na página
@@ -296,6 +377,7 @@ def emitir_nf_circulação(log_instance, page, views, current_view):
         driver.switch_to.default_content() # Muda para o contexto padrão da página
 
         time.sleep(20)
+        """
 
         element_submit_emitir = WebDriverWait(driver, 50).until( # Busca pelo elemento submit na página
             EC.presence_of_element_located((By.XPATH, '//*[@id="formButton"]'))
@@ -544,21 +626,48 @@ def emitir_nf_circulação(log_instance, page, views, current_view):
 
                         # Encontra o campo de ICMS e clica nele
                         element_campo_ICMS = WebDriverWait(driver, 50).until( 
-                            EC.presence_of_element_located((By.XPATH, '/html/body/div[5]/div[10]/div/form/div[3]/ul/li[3]/a'))
+                            EC.presence_of_element_located((By.XPATH, xpath_ir_para_aba_campo_icms))
                         )
                         element_campo_ICMS.click()
 
                         # Encontra o campo ORIG e altera para o orig do produto
                         element_orig = Select(driver.find_element(By.XPATH, f'//*[@id="item_icms_origin"]'))
 
-                        element_orig.select_by_value(cst)
+                        element_orig.select_by_value(f'{cst}')
 
-                        # Encontra o campo para alterar o CST do produto para 400
-                        element_cst = Select(driver.find_element(By.ID, 'item_icms_cst'))
+                        if botao_switch_para_icms == 'False':
 
-                        element_cst.select_by_value('400')
+                            # Encontra o campo para alterar o CST do produto para 400
+                            element_cst = Select(driver.find_element(By.ID, 'item_icms_cst'))
 
-                        element_submit_produto = driver.find_element(By.XPATH, '/html/body/div[5]/div[10]/div/form/div[4]/div/span[1]/button') # Encontra o botão de salvar as informações do produto e clica
+                            element_cst.select_by_value('400')
+
+                            time.sleep(3)
+
+                        elif botao_switch_para_icms == 'True':
+                            
+                            # Encontra o campo para alterar o CST do produto para 400
+                            element_cst = Select(driver.find_element(By.ID, 'item_icms_cst'))
+
+                            element_cst.select_by_value('00')
+
+                            element_campo_cst_icms = WebDriverWait(driver, 50).until(
+                                EC.element_to_be_clickable((By.ID, 'item_icms_tax_rate'))
+                            )
+
+                            element_campo_cst_icms.clear()
+
+                            time.sleep(2)
+
+                            driver.execute_script("""
+                                arguments[0].value = arguments[1];
+                                arguments[0].dispatchEvent(new Event('input'));
+                                arguments[0].dispatchEvent(new Event('change'));
+                            """, element_campo_cst_icms, icms)
+
+                            time.sleep(3)
+
+                        element_submit_produto = driver.find_element(By.XPATH, xpath_botao_submit_aba_icms) # Encontra o botão de salvar as informações do produto e clica
                         driver.execute_script("arguments[0].scrollIntoView({ behavior: 'smooth', block: 'center' });", element_submit_produto)
                         driver.execute_script("arguments[0].click();", element_submit_produto)
 
@@ -650,7 +759,16 @@ def emitir_nf_circulação(log_instance, page, views, current_view):
                     EC.presence_of_element_located((By.ID, 'nfe_notes'))
                 )
 
-                element_observação.send_keys(f'@ENV ;@REF {CHAMADO} REF NF {', '.join(nf_lista)} PN {', '.join(pn_lista)}\n I - "DOCUMENTO EMITIDO POR ME OU EPP OPTANTE PELO SIMPLES NACIONAL";II - "NÃO GERA DIREITO A CRÉDITO FISCAL DE ICMS, DE ISS E DE IPI".')
+
+                if botao_switch_para_icms == 'False':
+
+                    element_observação.send_keys(f'@ENV ;@REF {CHAMADO} REF NF {', '.join(nf_lista)} PN {', '.join(pn_lista)}\n I - "DOCUMENTO EMITIDO POR ME OU EPP OPTANTE PELO SIMPLES NACIONAL";II - "NÃO GERA DIREITO A CRÉDITO FISCAL DE ICMS, DE ISS E DE IPI".')
+                
+                elif botao_switch_para_icms == 'True':
+                    
+                    element_observação.send_keys(f'@ENV ;@REF {CHAMADO} REF NF {', '.join(nf_lista)} PN {', '.join(pn_lista)}')                  
+
+
 
                 # Encontra o bloco de pagamento e seleciona o 90
                 element_formaPagamento = Select(driver.find_element(By.ID, 'nfe_payment_method'))
@@ -682,12 +800,12 @@ def emitir_nf_circulação(log_instance, page, views, current_view):
 
                 # Confirma a emissão da NF
                 element_confirmar_emissão = WebDriverWait(driver, 100).until(
-                    EC.presence_of_element_located((By.XPATH, '/html/body/div[5]/div[13]/div[2]/span/button'))
+                    EC.presence_of_element_located((By.XPATH, xpath_botao_emitir_nf))
                 )
                 element_confirmar_emissão.click()
 
                 element_carregar = WebDriverWait(driver, 100).until( # Aguarda o elemento do carregamento da NF desaparecer para continuar
-                    EC.invisibility_of_element_located((By.XPATH, '/html/body/div[5]/div[13]/div[2]/span/button'))
+                    EC.invisibility_of_element_located((By.XPATH, xpath_botao_emitir_nf))
                 )
 
                 if element_carregar:
@@ -752,8 +870,36 @@ def emitir_nf_entrada_tec(log_instance, page, views, current_view):
     botao_voltar.content.color = ft.Colors.GREY_400
     page.update()
 
+    driver = None
 
-    driver = webdriver.Chrome()
+    #==============================================================================
+    subprocess.run(["powershell", "-Command", "Stop-Process -Name chrome -Force"], capture_output=True)
+    time.sleep(3)
+
+    # Pasta vazia nova, sem copiar nada
+    import os
+    temp_dir = r"C:\ChromeSelenium"
+    os.makedirs(temp_dir, exist_ok=True)
+
+    subprocess.Popen([
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        "--remote-debugging-port=9222",
+        f"--user-data-dir={temp_dir}",
+        "--no-first-run",
+        "--no-default-browser-check"
+    ])
+
+    options = Options()
+    options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=options)
+
+    log_instance.log_message('Iniciando importação de arquivos...')
+
+    driver.get(url_login_iob)
+
+    time.sleep(4)
+    #==============================================================================
 
     actions = ActionChains(driver)
 
@@ -763,6 +909,8 @@ def emitir_nf_entrada_tec(log_instance, page, views, current_view):
     driver.get(url_login_iob)
     
     try:
+        time.sleep(15) # tempo para carregar o reCAPTCHA
+
         element_usuario_emitir = WebDriverWait(driver, 200).until( # Busca pela página o campo de usuário
             EC.presence_of_element_located((By.ID, 'username'))
         )
@@ -775,6 +923,7 @@ def emitir_nf_entrada_tec(log_instance, page, views, current_view):
         )
         element_senha_emitir.send_keys(senha_IOB) # Insere a senha
 
+        """
         time.sleep(2.5) # tempo para carregar o reCAPTCHA
 
         element_reCAPTCHA_emitir = WebDriverWait(driver, 50).until( # Buscar o elemento reCAPTCHA na página
@@ -787,6 +936,7 @@ def emitir_nf_entrada_tec(log_instance, page, views, current_view):
         driver.switch_to.default_content() # Muda para o contexto padrão da página
 
         time.sleep(20)
+        """
 
         element_submit_emitir = WebDriverWait(driver, 50).until( # Busca pelo elemento submit na página
             EC.presence_of_element_located((By.XPATH, '//*[@id="formButton"]'))
@@ -1026,7 +1176,7 @@ def emitir_nf_entrada_tec(log_instance, page, views, current_view):
 
                         # Encontra o campo de ICMS e clica nele
                         element_campo_ICMS = WebDriverWait(driver, 50).until( 
-                            EC.presence_of_element_located((By.XPATH, '/html/body/div[5]/div[10]/div/form/div[3]/ul/li[3]/a'))
+                            EC.presence_of_element_located((By.XPATH, xpath_ir_para_aba_campo_icms))
                         )
                         element_campo_ICMS.click()
 
@@ -1035,12 +1185,39 @@ def emitir_nf_entrada_tec(log_instance, page, views, current_view):
 
                         element_orig.select_by_value(cst)
 
-                        # Encontra o campo para alterar o CST do produto para 400
-                        element_cst = Select(driver.find_element(By.ID, 'item_icms_cst'))
+                        if botao_switch_para_icms == 'False':
 
-                        element_cst.select_by_value('400')
+                            # Encontra o campo para alterar o CST do produto para 400
+                            element_cst = Select(driver.find_element(By.ID, 'item_icms_cst'))
 
-                        element_submit_produto = driver.find_element(By.XPATH, '/html/body/div[5]/div[10]/div/form/div[4]/div/span[1]/button') # Encontra o botão de salvar as informações do produto e clica
+                            element_cst.select_by_value('400')
+
+                            time.sleep(3)
+
+                        elif botao_switch_para_icms == 'True':
+                            
+                            # Encontra o campo para alterar o CST do produto para 400
+                            element_cst = Select(driver.find_element(By.ID, 'item_icms_cst'))
+
+                            element_cst.select_by_value('00')
+
+                            element_campo_cst_icms = WebDriverWait(driver, 50).until(
+                                EC.element_to_be_clickable((By.ID, 'item_icms_tax_rate'))
+                            )
+
+                            element_campo_cst_icms.clear()
+
+                            time.sleep(1)
+
+                            driver.execute_script("""
+                                arguments[0].value = arguments[1];
+                                arguments[0].dispatchEvent(new Event('input'));
+                                arguments[0].dispatchEvent(new Event('change'));
+                            """, element_campo_cst_icms, icms)
+
+                            time.sleep(3)
+
+                        element_submit_produto = driver.find_element(By.XPATH, xpath_botao_submit_aba_icms) # Encontra o botão de salvar as informações do produto e clica
                         driver.execute_script("arguments[0].scrollIntoView({ behavior: 'smooth', block: 'center' });", element_submit_produto)
                         driver.execute_script("arguments[0].click();", element_submit_produto)
 
@@ -1132,7 +1309,14 @@ def emitir_nf_entrada_tec(log_instance, page, views, current_view):
                     EC.presence_of_element_located((By.ID, 'nfe_notes'))
                 )
 
-                element_observação.send_keys(f'@ENV ;@REF {CHAMADO} REF NF {nf_lista} PN {pn_lista} STATUS {status_planilha}\n I - "DOCUMENTO EMITIDO POR ME OU EPP OPTANTE PELO SIMPLES NACIONAL";II - "NÃO GERA DIREITO A CRÉDITO FISCAL DE ICMS, DE ISS E DE IPI".')
+                if botao_switch_para_icms == 'False':
+
+                    element_observação.send_keys(f'@ENV ;@REF {CHAMADO} REF NF {nf_lista} PN {pn_lista} STATUS {status_planilha}\n I - "DOCUMENTO EMITIDO POR ME OU EPP OPTANTE PELO SIMPLES NACIONAL";II - "NÃO GERA DIREITO A CRÉDITO FISCAL DE ICMS, DE ISS E DE IPI".')
+                
+                elif botao_switch_para_icms == 'True':
+                    
+                    element_observação.send_keys(f'@ENV ;@REF {CHAMADO} REF NF {nf_lista} PN {pn_lista} STATUS {status_planilha}')
+
 
                 # Encontra o bloco de pagamento e seleciona o 90
                 element_formaPagamento = Select(driver.find_element(By.ID, 'nfe_payment_method'))
@@ -1164,12 +1348,12 @@ def emitir_nf_entrada_tec(log_instance, page, views, current_view):
 
                 # Confirma a emissão da NF
                 element_confirmar_emissão = WebDriverWait(driver, 100).until(
-                    EC.presence_of_element_located((By.XPATH, '/html/body/div[5]/div[13]/div[2]/span/button'))
+                    EC.presence_of_element_located((By.XPATH, xpath_botao_emitir_nf))
                 )
                 element_confirmar_emissão.click()
 
                 element_carregar = WebDriverWait(driver, 100).until( # Aguarda o elemento do carregamento da NF desaparecer para continuar
-                    EC.invisibility_of_element_located((By.XPATH, '/html/body/div[5]/div[13]/div[2]/span/button'))
+                    EC.invisibility_of_element_located((By.XPATH, xpath_botao_emitir_nf))
                 )
 
                 if element_carregar:
@@ -1252,7 +1436,36 @@ def emitir_NF_dev_dell(log_instance, page, views, current_view):
 
         idx = 0
 
-        driver = webdriver.Chrome()
+        driver = None
+
+        #==============================================================================
+        subprocess.run(["powershell", "-Command", "Stop-Process -Name chrome -Force"], capture_output=True)
+        time.sleep(3)
+
+        # Pasta vazia nova, sem copiar nada
+        import os
+        temp_dir = r"C:\ChromeSelenium"
+        os.makedirs(temp_dir, exist_ok=True)
+
+        subprocess.Popen([
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            "--remote-debugging-port=9222",
+            f"--user-data-dir={temp_dir}",
+            "--no-first-run",
+            "--no-default-browser-check"
+        ])
+
+        options = Options()
+        options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=options)
+
+        log_instance.log_message('Iniciando importação de arquivos...')
+
+        driver.get(url_login_iob)
+
+        time.sleep(4)
+        #==============================================================================
 
         actions = ActionChains(driver)
 
@@ -1262,6 +1475,9 @@ def emitir_NF_dev_dell(log_instance, page, views, current_view):
         driver.get(url_login_iob)
 
         try:
+
+            time.sleep(15) # tempo para carregar o reCAPTCHA
+
             element_usuario_emitir = WebDriverWait(driver, 200).until( # Busca pela página o campo de usuário
                 EC.presence_of_element_located((By.ID, 'username'))
             )
@@ -1274,6 +1490,7 @@ def emitir_NF_dev_dell(log_instance, page, views, current_view):
             )
             element_senha_emitir.send_keys(senha_IOB) # Insere a senha
 
+            """
             time.sleep(2.5) # tempo para carregar o reCAPTCHA
 
             element_reCAPTCHA_emitir = WebDriverWait(driver, 50).until( # Buscar o elemento reCAPTCHA na página
@@ -1286,6 +1503,7 @@ def emitir_NF_dev_dell(log_instance, page, views, current_view):
             driver.switch_to.default_content() # Muda para o contexto padrão da página
 
             time.sleep(20)
+            """
 
             element_submit_emitir = WebDriverWait(driver, 50).until( # Busca pelo elemento submit na página
                 EC.presence_of_element_located((By.XPATH, '//*[@id="formButton"]'))
@@ -1557,7 +1775,7 @@ def emitir_NF_dev_dell(log_instance, page, views, current_view):
 
                         # Encontra o campo de ICMS e clica nele
                         element_campo_ICMS = WebDriverWait(driver, 50).until( 
-                            EC.presence_of_element_located((By.XPATH, '/html/body/div[5]/div[10]/div/form/div[3]/ul/li[3]/a'))
+                            EC.presence_of_element_located((By.XPATH, xpath_ir_para_aba_campo_icms))
                         )
                         element_campo_ICMS.click()
 
@@ -1566,7 +1784,6 @@ def emitir_NF_dev_dell(log_instance, page, views, current_view):
 
                         element_orig.select_by_value(f'{CST}')
 
-                        log_instance.log_message(f'ICMS DO PRODUTO: {botao_switch_para_icms}')
 
                         if botao_switch_para_icms == 'False':
 
@@ -1585,14 +1802,22 @@ def emitir_NF_dev_dell(log_instance, page, views, current_view):
                             element_cst.select_by_value('00')
 
                             element_campo_cst_icms = WebDriverWait(driver, 50).until(
-                                EC.presence_of_element_located((By.XPATH, '/html/body/div[5]/div[10]/div/form/div[3]/div[3]/div/div[1]/fieldset[1]/div[7]/div/div[4]/div/span/input[2]'))
+                                EC.element_to_be_clickable((By.ID, 'item_icms_tax_rate'))
                             )
 
-                            element_campo_cst_icms.send_keys(f'{ICMS}')
+                            element_campo_cst_icms.clear()
+
+                            time.sleep(1)
+
+                            driver.execute_script("""
+                                arguments[0].value = arguments[1];
+                                arguments[0].dispatchEvent(new Event('input'));
+                                arguments[0].dispatchEvent(new Event('change'));
+                            """, element_campo_cst_icms, ICMS)
 
                             time.sleep(3)
 
-                        element_submit_produto = driver.find_element(By.XPATH, '/html/body/div[5]/div[10]/div/form/div[4]/div/span[1]/button') # Encontra o botão de salvar as informações do produto e clica
+                        element_submit_produto = driver.find_element(By.XPATH, xpath_botao_submit_aba_icms) # Encontra o botão de salvar as informações do produto e clica
                         driver.execute_script("arguments[0].scrollIntoView({ behavior: 'smooth', block: 'center' });", element_submit_produto)
                         driver.execute_script("arguments[0].click();", element_submit_produto)
 
@@ -1739,14 +1964,14 @@ def emitir_NF_dev_dell(log_instance, page, views, current_view):
 
                         # Confirma a emissão da NF
                         element_confirmar_emissão = WebDriverWait(driver, 100).until(
-                            EC.presence_of_element_located((By.XPATH, '/html/body/div[5]/div[13]/div[2]/span/button'))
+                            EC.presence_of_element_located((By.XPATH, xpath_botao_emitir_nf))
                         )
                         element_confirmar_emissão.click()
 
                     except:
                         # Confirma a emissão da NF
                         element_confirmar_emissão = WebDriverWait(driver, 100).until(
-                            EC.presence_of_element_located((By.XPATH, '/html/body/div[5]/div[13]/div[2]/span/button'))
+                            EC.presence_of_element_located((By.XPATH, xpath_botao_emitir_nf))
                         )
                         element_confirmar_emissão.click()
 
@@ -1758,7 +1983,7 @@ def emitir_NF_dev_dell(log_instance, page, views, current_view):
 
                     # Encontra o elemento para baixar o XML e clica
                     element_baixar_xml = WebDriverWait(driver, 30).until(
-                        EC.element_to_be_clickable((By.XPATH, '/html/body/div[4]/section/div/div[4]/div/a[4]'))
+                        EC.element_to_be_clickable((By.XPATH, xpath_botao_baixar_xml))
                     )
                     element_baixar_xml.click()
 
@@ -1766,13 +1991,13 @@ def emitir_NF_dev_dell(log_instance, page, views, current_view):
 
                     # Encontra o elemento para ir para danfe e clica
                     element_ir_para_danfe = WebDriverWait(driver, 100).until(
-                        EC.element_to_be_clickable((By.XPATH, '/html/body/div[4]/section/div/div[4]/div/a[3]'))
+                        EC.element_to_be_clickable((By.XPATH, xpath_botao_ir_para_danfe))
                     )
                     element_ir_para_danfe.click()
 
                     # Encontra o elemento para baixar o PDF e clica
                     element_baixar_pdf = WebDriverWait(driver, 100).until(
-                        EC.element_to_be_clickable((By.XPATH, '/html/body/div[4]/section/div/a[2]'))
+                        EC.element_to_be_clickable((By.XPATH, xpath_botao_baixar_pdf))
                     )
                     element_baixar_pdf.click()
 
@@ -1912,7 +2137,36 @@ def emitir_NF_dev_hp(log_instance, page, views, current_view):
 
         idx = 0
 
-        driver = webdriver.Chrome()
+        driver = None
+
+        #==============================================================================
+        subprocess.run(["powershell", "-Command", "Stop-Process -Name chrome -Force"], capture_output=True)
+        time.sleep(3)
+
+        # Pasta vazia nova, sem copiar nada
+        import os
+        temp_dir = r"C:\ChromeSelenium"
+        os.makedirs(temp_dir, exist_ok=True)
+
+        subprocess.Popen([
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            "--remote-debugging-port=9222",
+            f"--user-data-dir={temp_dir}",
+            "--no-first-run",
+            "--no-default-browser-check"
+        ])
+
+        options = Options()
+        options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=options)
+
+        log_instance.log_message('Iniciando importação de arquivos...')
+
+        driver.get(url_login_iob)
+
+        time.sleep(4)
+        #==============================================================================
 
         actions = ActionChains(driver)
 
@@ -1922,6 +2176,8 @@ def emitir_NF_dev_hp(log_instance, page, views, current_view):
         driver.get(url_login_iob)
 
         try:
+            time.sleep(15) # tempo para carregar o reCAPTCHA
+
             element_usuario_emitir = WebDriverWait(driver, 200).until( # Busca pela página o campo de usuário
                 EC.presence_of_element_located((By.ID, 'username'))
             )
@@ -1934,6 +2190,7 @@ def emitir_NF_dev_hp(log_instance, page, views, current_view):
             )
             element_senha_emitir.send_keys(senha_IOB) # Insere a senha
 
+            """
             time.sleep(2.5) # tempo para carregar o reCAPTCHA
 
             element_reCAPTCHA_emitir = WebDriverWait(driver, 50).until( # Buscar o elemento reCAPTCHA na página
@@ -1946,6 +2203,7 @@ def emitir_NF_dev_hp(log_instance, page, views, current_view):
             driver.switch_to.default_content() # Muda para o contexto padrão da página
 
             time.sleep(20)
+            """
 
             element_submit_emitir = WebDriverWait(driver, 50).until( # Busca pelo elemento submit na página
                 EC.presence_of_element_located((By.XPATH, '//*[@id="formButton"]'))
@@ -2215,7 +2473,7 @@ def emitir_NF_dev_hp(log_instance, page, views, current_view):
 
                         # Encontra o campo de ICMS e clica nele
                         element_campo_ICMS = WebDriverWait(driver, 50).until( 
-                            EC.presence_of_element_located((By.XPATH, '/html/body/div[5]/div[10]/div/form/div[3]/ul/li[3]/a'))
+                            EC.presence_of_element_located((By.XPATH, xpath_ir_para_aba_campo_icms))
                         )
                         element_campo_ICMS.click()
 
@@ -2224,12 +2482,39 @@ def emitir_NF_dev_hp(log_instance, page, views, current_view):
 
                         element_orig.select_by_value(f'{CST}')
 
-                        # Encontra o campo para alterar o CST do produto para 400
-                        element_cst = Select(driver.find_element(By.ID, 'item_icms_cst'))
+                        if botao_switch_para_icms == 'False':
 
-                        element_cst.select_by_value('400')
+                            # Encontra o campo para alterar o CST do produto para 400
+                            element_cst = Select(driver.find_element(By.ID, 'item_icms_cst'))
 
-                        element_submit_produto = driver.find_element(By.XPATH, '/html/body/div[5]/div[10]/div/form/div[4]/div/span[1]/button') # Encontra o botão de salvar as informações do produto e clica
+                            element_cst.select_by_value('400')
+
+                            time.sleep(3)
+
+                        elif botao_switch_para_icms == 'True':
+                            
+                            # Encontra o campo para alterar o CST do produto para 400
+                            element_cst = Select(driver.find_element(By.ID, 'item_icms_cst'))
+
+                            element_cst.select_by_value('00')
+
+                            element_campo_cst_icms = WebDriverWait(driver, 50).until(
+                                EC.element_to_be_clickable((By.ID, 'item_icms_tax_rate'))
+                            )
+
+                            element_campo_cst_icms.clear()
+
+                            time.sleep(1)
+
+                            driver.execute_script("""
+                                arguments[0].value = arguments[1];
+                                arguments[0].dispatchEvent(new Event('input'));
+                                arguments[0].dispatchEvent(new Event('change'));
+                            """, element_campo_cst_icms, ICMS)
+
+                            time.sleep(3)
+
+                        element_submit_produto = driver.find_element(By.XPATH, xpath_botao_submit_aba_icms) # Encontra o botão de salvar as informações do produto e clica
                         driver.execute_script("arguments[0].scrollIntoView({ behavior: 'smooth', block: 'center' });", element_submit_produto)
                         driver.execute_script("arguments[0].click();", element_submit_produto)
 
@@ -2331,8 +2616,15 @@ def emitir_NF_dev_hp(log_instance, page, views, current_view):
                         EC.presence_of_element_located((By.ID, 'nfe_notes'))
                     )
 
-                    if PN:
-                        element_observação.send_keys(f'@DEV ;@REF {CHAMADO} REF NF {NF} PN {PN} AWB {AWB} {STATUS_planilha}\n I - "DOCUMENTO EMITIDO POR ME OU EPP OPTANTE PELO SIMPLES NACIONAL";II - "NÃO GERA DIREITO A CRÉDITO FISCAL DE ICMS, DE ISS E DE IPI".')
+                    if botao_switch_para_icms == 'False':
+                        
+                        if PN :
+                            element_observação.send_keys(f'@DEV ;@REF {CHAMADO} REF NF {NF} PN {PN} {STATUS_planilha}\n I - "DOCUMENTO EMITIDO POR ME OU EPP OPTANTE PELO SIMPLES NACIONAL";II - "NÃO GERA DIREITO A CRÉDITO FISCAL DE ICMS, DE ISS E DE IPI".')                        
+
+                    elif botao_switch_para_icms == 'True':
+
+                        if PN:
+                            element_observação.send_keys(f'@DEV ;@REF {CHAMADO} REF NF {NF} PN {PN} {STATUS_planilha}')
 
                     time.sleep(3)
 
@@ -2364,14 +2656,14 @@ def emitir_NF_dev_hp(log_instance, page, views, current_view):
 
                         # Confirma a emissão da NF
                         element_confirmar_emissão = WebDriverWait(driver, 100).until(
-                            EC.presence_of_element_located((By.XPATH, '/html/body/div[5]/div[13]/div[2]/span/button'))
+                            EC.presence_of_element_located((By.XPATH, xpath_botao_emitir_nf))
                         )
                         element_confirmar_emissão.click()
 
                     except:
                         # Confirma a emissão da NF
                         element_confirmar_emissão = WebDriverWait(driver, 100).until(
-                            EC.presence_of_element_located((By.XPATH, '/html/body/div[5]/div[13]/div[2]/span/button'))
+                            EC.presence_of_element_located((By.XPATH, xpath_botao_emitir_nf))
                         )
                         element_confirmar_emissão.click()
 
@@ -2391,13 +2683,13 @@ def emitir_NF_dev_hp(log_instance, page, views, current_view):
 
                     # Encontra o elemento para ir para danfe e clica
                     element_ir_para_danfe = WebDriverWait(driver, 100).until(
-                        EC.element_to_be_clickable((By.XPATH, '/html/body/div[4]/section/div/div[4]/div/a[3]'))
+                        EC.element_to_be_clickable((By.XPATH, xpath_botao_ir_para_danfe))
                     )
                     element_ir_para_danfe.click()
 
                     # Encontra o elemento para baixar o PDF e clica
                     element_baixar_pdf = WebDriverWait(driver, 100).until(
-                        EC.element_to_be_clickable((By.XPATH, '/html/body/div[4]/section/div/a[2]'))
+                        EC.element_to_be_clickable((By.XPATH, xpath_botao_baixar_pdf))
                     )
                     element_baixar_pdf.click()
 
@@ -2510,7 +2802,6 @@ def emitir_NF_dev_hp(log_instance, page, views, current_view):
     # Chama a função de exibir o popup
     mostrar_confirmacao(page)
 
-
 def emitir_NF_dev_flex(log_instance, page, views, current_view):
 
     navigate(current_view = current_view, page = page, views = views, view_name = 'logs e informações devolução')
@@ -2520,7 +2811,36 @@ def emitir_NF_dev_flex(log_instance, page, views, current_view):
     botao_voltar.content.color = ft.Colors.GREY_400
     page.update()
 
-    driver = webdriver.Chrome()
+    driver = None
+
+    #==============================================================================
+    subprocess.run(["powershell", "-Command", "Stop-Process -Name chrome -Force"], capture_output=True)
+    time.sleep(3)
+
+    # Pasta vazia nova, sem copiar nada
+    import os
+    temp_dir = r"C:\ChromeSelenium"
+    os.makedirs(temp_dir, exist_ok=True)
+
+    subprocess.Popen([
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        "--remote-debugging-port=9222",
+        f"--user-data-dir={temp_dir}",
+        "--no-first-run",
+        "--no-default-browser-check"
+    ])
+
+    options = Options()
+    options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=options)
+
+    log_instance.log_message('Iniciando importação de arquivos...')
+
+    driver.get(url_login_iob)
+
+    time.sleep(4)
+    #==============================================================================
 
     actions = ActionChains(driver)
 
@@ -2530,6 +2850,8 @@ def emitir_NF_dev_flex(log_instance, page, views, current_view):
     driver.get(url_login_iob)
     
     try:
+        time.sleep(15) # tempo para carregar o reCAPTCHA
+
         element_usuario_emitir = WebDriverWait(driver, 200).until( # Busca pela página o campo de usuário
             EC.presence_of_element_located((By.ID, 'username'))
         )
@@ -2542,6 +2864,7 @@ def emitir_NF_dev_flex(log_instance, page, views, current_view):
         )
         element_senha_emitir.send_keys(senha_IOB) # Insere a senha
 
+        """
         time.sleep(2.5) # tempo para carregar o reCAPTCHA
 
         element_reCAPTCHA_emitir = WebDriverWait(driver, 50).until( # Buscar o elemento reCAPTCHA na página
@@ -2554,6 +2877,7 @@ def emitir_NF_dev_flex(log_instance, page, views, current_view):
         driver.switch_to.default_content() # Muda para o contexto padrão da página
 
         time.sleep(20)
+        """
 
         element_submit_emitir = WebDriverWait(driver, 50).until( # Busca pelo elemento submit na página
             EC.presence_of_element_located((By.XPATH, '//*[@id="formButton"]'))
@@ -2789,7 +3113,7 @@ def emitir_NF_dev_flex(log_instance, page, views, current_view):
 
                 # Encontra o campo de ICMS e clica nele
                 element_campo_ICMS = WebDriverWait(driver, 50).until( 
-                    EC.presence_of_element_located((By.XPATH, '/html/body/div[5]/div[10]/div/form/div[3]/ul/li[3]/a'))
+                    EC.presence_of_element_located((By.XPATH, xpath_ir_para_aba_campo_icms))
                 )
                 element_campo_ICMS.click()
 
@@ -2798,7 +3122,7 @@ def emitir_NF_dev_flex(log_instance, page, views, current_view):
 
                 element_cst.select_by_value('400')
 
-                element_submit_produto = driver.find_element(By.XPATH, '/html/body/div[5]/div[10]/div/form/div[4]/div/span[1]/button') # Encontra o botão de salvar as informações do produto e clica
+                element_submit_produto = driver.find_element(By.XPATH, xpath_botao_submit_aba_icms) # Encontra o botão de salvar as informações do produto e clica
                 driver.execute_script("arguments[0].scrollIntoView({ behavior: 'smooth', block: 'center' });", element_submit_produto)
                 driver.execute_script("arguments[0].click();", element_submit_produto)
 
@@ -2872,8 +3196,15 @@ def emitir_NF_dev_flex(log_instance, page, views, current_view):
 
         # OBSERVAÇÕES com TODOS os dados da planilha
         texto_obs = f'@ENV ;@REF {", ".join(todos_chamados)} REF NF {", ".join(todas_nfs)} PN {", ".join(todos_pns)}\n I - "DOCUMENTO EMITIDO POR ME OU EPP OPTANTE PELO SIMPLES NACIONAL";II - "NÃO GERA DIREITO A CRÉDITO FISCAL DE ICMS, DE ISS E DE IPI".'
+        texto_obs_icms = f'@ENV ;@REF {", ".join(todos_chamados)} REF NF {", ".join(todas_nfs)} PN {", ".join(todos_pns)}'
 
-        element_observação.send_keys(texto_obs)
+        if botao_switch_para_icms == 'False':
+
+            element_observação.send_keys(texto_obs)              
+
+        elif botao_switch_para_icms == 'True':
+
+            element_observação.send_keys(texto_obs_icms)
 
         element_formaPagamento = Select(driver.find_element(By.ID, 'nfe_payment_method'))
         element_formaPagamento.select_by_value('90')
@@ -2901,12 +3232,12 @@ def emitir_NF_dev_flex(log_instance, page, views, current_view):
             pass
 
         element_confirmar_emissão = WebDriverWait(driver, 100).until(
-            EC.presence_of_element_located((By.XPATH, '/html/body/div[5]/div[13]/div[2]/span/button'))
+            EC.presence_of_element_located((By.XPATH, xpath_botao_emitir_nf))
         )
         element_confirmar_emissão.click()
 
         element_carregar = WebDriverWait(driver, 100).until(
-            EC.invisibility_of_element_located((By.XPATH, '/html/body/div[5]/div[13]/div[2]/span/button'))
+            EC.invisibility_of_element_located((By.XPATH, xpath_botao_emitir_nf))
         )
 
         if element_carregar:
